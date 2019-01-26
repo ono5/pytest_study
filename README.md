@@ -628,3 +628,175 @@ collected 1 item
 
 test_add_variety.py::test_add_6[just summary] PASSED  
 ```
+
+# pytest フィクスチャ
+
+## 概要
+
+フィクスチャは、テストコードの構造化に欠かせない部分で、実際のテスト関数の実行に先立って、
+pytest によって実行される関数。
+
+* テストで使用するデータの取得
+* テストを実行する前にシステムを既知の状態にする
+* 複数のテストで使用するデータの準備
+
+## 使用方法
+
+@pytest.fixture() を使って、実行したい関数をフィクスチャにする。
+テスト関数のパラメータリストにフィクスチャの名前を指定すると、テストを実行する前に
+そのフィクスチャが pytest によって実行される。
+
+テスト関数にデータを返すこともできる。
+
+```bash
+import pytest
+
+@pytest.fixture()
+def some_data():
+    ""Return answer to ultimate question.""
+    return 42
+
+def test_some_data(some_data):
+    """Use fixture return value in a test."""
+    assert some_data == 42
+```
+
+## 命名規則
+
+pytest は、同じ名前のフィクスチャを現在のテストモジュール内で探す。
+見つからなかった場合は、conftest.py ファイルも調べる。
+
+## conftest.py を通じてフィクスチャを共有
+
+複数のテストでフィクスチャを共有したい場合は、conftest.py をテストファイルと一緒に配置する。
+
+ルートディレクトリのサブディレクトリに別の conftest.py を配置できる。
+その場合は、そのディレクトリおよびそこに含まれているテストだけフィクスチャを利用できる。
+
+conftest.py は、import conf でインポートしにこと。pytest によって読み込まれるローカルプラグインになるため。
+
+ルートディレクトリに conftest.py を設置すれば、全てのテストで利用できる。
+
+## tmpdir
+テストで一時ディレクトリを扱うときに便利なフィクスチャ。
+
+## yield
+
+通常フィクスチャはテスト関数の実行前に処理されるが、yield を使用すると制御がテスト関数に譲渡され、
+テスト関数終了後に残りの処理を実行できる。
+
+yield 実行前 -> setUp, 実行後 -> tearDown のようなもの。
+
+yield の後処理は、必ず実行される。(テストがエラーの場合でも)
+
+yield からデータを返すことも可能。
+
+## 構造化
+
+コメントに GIVEN(前提) / WHEN (こうしたら) / THEN (こうなる) 形式のコメントでテストを構造化する。
+
+こうしておくと task_db がフィクスチャであることがわかりやすくなる。(Given のコメントをみて)
+
+```bash
+def test_add_returns_valid_id(tasks_db):
+    """tasks.add(<valid task>) should return an integer."""
+    # GIVEN an initialized tasks db (task_db が初期化ずみであるとすれば)
+    # WHEN a new task is added(新しいタスクが追加されたときに)
+    # THEN returned task_id is of type int(返される task_id は、int 型)
+    new_task = Task('do something')
+    task_id = tasks.add(new_task)
+    assert isinstance(task_id, int)
+```
+
+以下の理由により、GIVEN の内容をできるだけフィクスチャとして表現するようにする。
+
+ * テストが読みやすくなり、よって管理しやすくなる
+ * フィクスチャでの assert や例外が ERROR になるのに対し、テストでの assert や例外が FAILED になる。
+   よって、テストが失敗するのはテストの内容が直接失敗した時だけにできる。
+
+## --setup-show
+
+どのフィクスチャがどのように実行されたかを確認するためのオプション
+
+```bash
+$ pytest -v test_add.py -k valid_id
+========================================================================================================= test session starts ==========================================================================================================
+platform darwin -- Python 3.6.4, pytest-4.1.1, py-1.7.0, pluggy-0.8.1 -- /Users/hono/Desktop/user_auth_with_django/env/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/hono/Desktop/pytest_code/ch3/a/tasks_proj/tests, inifile: pytest.ini
+collected 3 items / 2 deselected                                                                                                                                                                                                       
+
+test_add.py::test_add_returns_valid_id PASSED
+
+$ pytest --setup-show -v test_add.py -k valid_id
+========================================================================================================= test session starts ==========================================================================================================
+platform darwin -- Python 3.6.4, pytest-4.1.1, py-1.7.0, pluggy-0.8.1 -- /Users/hono/Desktop/user_auth_with_django/env/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/hono/Desktop/pytest_code/ch3/a/tasks_proj/tests, inifile: pytest.ini
+collected 3 items / 2 deselected                                                                                                                                                                                                       
+
+test_add.py::test_add_returns_valid_id 
+SETUP    S tmpdir_factory
+        SETUP    F tmpdir (fixtures used: tmpdir_factory)
+        SETUP    F tasks_db (fixtures used: tmpdir)
+        func/test_add.py::test_add_returns_valid_id (fixtures used: tasks_db, tmpdir, tmpdir_factory)PASSED
+        TEARDOWN F tasks_db
+        TEARDOWN F tmpdir
+TEARDOWN S tmpdir_factory
+```
+
+## 複数のフィクスチャ
+フィクスチャは、テスト関数や他のフィクスチャから利用できる。
+
+```bash
+@pytest.fixture()
+def tasks_just_a_few():
+    """All summaries and owners are unique."""
+    return (
+        Task('Write some code', 'Brian', True),
+        Task("Code review Brian's code", 'Katie', False),
+        Task('Fix what Brian did', 'Michelle', False))
+
+
+@pytest.fixture()
+def tasks_mult_per_owner():
+    """Several owners with several tasks each."""
+    return (
+        Task('Make a cookie', 'Raphael'),
+        Task('Use an emoji', 'Raphael'),
+        Task('Move to Berlin', 'Raphael'),
+
+        Task('Create', 'Michelle'),
+        Task('Inspire', 'Michelle'),
+        Task('Encourage', 'Michelle'),
+
+        Task('Do a handstand', 'Daniel'),
+        Task('Write some books', 'Daniel'),
+        Task('Eat ice cream', 'Daniel'))
+
+
+@pytest.fixture()
+def db_with_3_tasks(tasks_db, tasks_just_a_few):
+    """Connected db with 3 tasks, all unique."""
+    for t in tasks_just_a_few:
+        tasks.add(t)
+
+
+@pytest.fixture()
+def db_with_multi_per_owner(tasks_db, tasks_mult_per_owner):
+    """Connected db with 9 tasks, 3 owners, all with 3 tasks."""
+    for t in tasks_mult_per_owner:
+        tasks.add(t)
+        
+
+# 使用
+def test_add_increases_count(db_with_3_tasks):
+    """Test tasks.add() affect on tasks.count()."""
+    # GIVEN a db with 3 tasks
+    #  WHEN another task is added
+    tasks.add(Task('throw a party'))
+
+    #  THEN the count increases by 1
+    assert tasks.count() == 4
+
+```
