@@ -394,6 +394,30 @@ tasks/test_three.py ..                                                          
 (0.00 durations hidden.  Use -vv to show these durations.)
 ```
 
+## --skip --skipif
+
+テストをスキップできる。
+
+
+```bash
+$ pytest -v XXXX
+
+# スキップした理由を知りたい場合
+$ pytest -rs XXXX
+```
+
+## -r
+
+指定されたテストの要約情報を pytest の出力に追加する。
+
+```bash
+  -r chars              show extra test summary info as specified by chars
+                        (f)ailed, (E)error, (s)skipped, (x)failed, (X)passed,
+                        (p)passed, (P)passed with output, (a)all except pP.
+                        Warnings are displayed at all times except when
+                        --disable-warnings is set
+```
+
 # テスト分類
 
 * ユニットテスト
@@ -430,3 +454,177 @@ tasks/test_three.py ..                                                          
 
 [Demo of Python failure reports with pytest](https://docs.pytest.org/en/latest/example/reportingdemo.html)
 
+# テスト関数にマークをつける
+
+テスト関数に @pytest.mark.XXXX のデコレータを付与する。
+
+# テストをパラメーター化する
+
+## デコレータ
+
+@pytest.mark.parametrize('<引数>', <引数値>)
+
+```bash
+@pytest.mark.parametrize('task',
+                         [Task('sleep', done=True),
+                          Task('wake', 'brian'),
+                          Task('breathe', 'BRIAN', True),
+                          Task('exercise', 'BrIaN', False)])
+def test_add_2(task):
+    """Demonstrate parametrize with one parameter."""
+    task_id = tasks.add(task)
+    t_from_db = tasks.get(task_id)
+    assert equivalent(t_from_db, task)
+
+
+@pytest.mark.parametrize('summary, owner, done',
+                         [('sleep', None, False),
+                          ('wake', 'brian', False),
+                          ('breathe', 'BRIAN', True),
+                          ('eat eggs', 'BrIaN', False),
+                          ])
+def test_add_3(summary, owner, done):
+    """Demonstrate parametrize with multiple parameters."""
+    task = Task(summary, owner, done)
+    task_id = tasks.add(task)
+    t_from_db = tasks.get(task_id)
+    assert equivalent(t_from_db, task)
+
+
+tasks_to_try = (Task('sleep', done=True),
+                Task('wake', 'brian'),
+                Task('wake', 'brian'),
+                Task('breathe', 'BRIAN', True),
+                Task('exercise', 'BrIaN', False))
+
+
+@pytest.mark.parametrize('task', tasks_to_try)
+def test_add_4(task):
+    """Slightly different take."""
+    task_id = tasks.add(task)
+    t_from_db = tasks.get(task_id)
+    assert equivalent(t_from_db, task)
+
+
+task_ids = ['Task({},{},{})'.format(t.summary, t.owner, t.done)
+            for t in tasks_to_try]
+
+
+@pytest.mark.parametrize('task', tasks_to_try, ids=task_ids)
+def test_add_5(task):
+    """Demonstrate ids."""
+    task_id = tasks.add(task)
+    t_from_db = tasks.get(task_id)
+    assert equivalent(t_from_db, task)
+
+
+@pytest.mark.parametrize('task', [
+    pytest.param(Task('create'), id='just summary'),
+    pytest.param(Task('inspire', 'Michelle'), id='summary/owner'),
+    pytest.param(Task('encourage', 'Michelle', True), id='summary/owner/done')])
+def test_add_6(task):
+    """Demonstrate pytest.param and id."""
+    task_id = tasks.add(task)
+    t_from_db = tasks.get(task_id)
+    assert equivalent(t_from_db, task)
+
+
+@pytest.mark.parametrize('task', tasks_to_try, ids=task_ids)
+class TestAdd():
+    """Demonstrate parametrize and test classes."""
+
+    def test_equivalent(self, task):
+        """Similar test, just within a class."""
+        task_id = tasks.add(task)
+        t_from_db = tasks.get(task_id)
+        assert equivalent(t_from_db, task)
+
+    def test_valid_id(self, task):
+        """We can use the same data for multiple tests."""
+        task_id = tasks.add(task)
+        t_from_db = tasks.get(task_id)
+        assert t_from_db.id == task_id
+
+```
+
+## テストID
+
+pytest が文字列に変換しやすい型を使用すると、テストIDとしてパラメータの値が使用されるため、
+出力が読みやすくなる。
+
+```bash
+(env) $ pytest -v test_add_variety.py::test_add_3
+========================================================================================================= test session starts ==========================================================================================================
+platform darwin -- Python 3.6.4, pytest-4.1.1, py-1.7.0, pluggy-0.8.1 -- /Users/hono/Desktop/user_auth_with_django/env/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/hono/Desktop/pytest_code/ch2/tasks_proj/tests, inifile: pytest.ini
+collected 4 items                                                                                                                                                                                                                      
+
+test_add_variety.py::test_add_3[sleep-None-False] PASSED                                                                                                                                                                         [ 25%]
+test_add_variety.py::test_add_3[wake-brian-False] PASSED                                                                                                                                                                         [ 50%]
+test_add_variety.py::test_add_3[breathe-BRIAN-True] PASSED                                                                                                                                                                       [ 75%]
+test_add_variety.py::test_add_3[eat eggs-BrIaN-False] PASSED
+
+# テストID sleep-None-False
+$ pytest -v test_add_variety.py::test_add_3[sleep-None-False]
+========================================================================================================= test session starts ==========================================================================================================
+platform darwin -- Python 3.6.4, pytest-4.1.1, py-1.7.0, pluggy-0.8.1 -- /Users/hono/Desktop/user_auth_with_django/env/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/hono/Desktop/pytest_code/ch2/tasks_proj/tests, inifile: pytest.ini
+collected 1 item                                                                                                                                                                                                                       
+
+test_add_variety.py::test_add_3[sleep-None-False] PASSED
+
+# テストID にスペースが含まれている場合は、必ず引用符("")で囲んでください。
+$ pytest -v "test_add_variety.py::test_add_3[eat sleep-None-False]"
+```
+
+## ids パラメータ
+parametrize オプションの ids を使って、テストのデータセットをそれぞれのIDといsて使用する。
+
+```bash
+# 引用符がいる
+$ pytest -v "test_add_variety.py::test_add_5[Task(exercise,BrIaN,False)]"
+========================================================================================================= test session starts ==========================================================================================================
+platform darwin -- Python 3.6.4, pytest-4.1.1, py-1.7.0, pluggy-0.8.1 -- /Users/hono/Desktop/user_auth_with_django/env/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/hono/Desktop/pytest_code/ch2/tasks_proj/tests, inifile: pytest.ini
+collected 1 item                                                                                                                                                                                                                       
+
+test_add_variety.py::test_add_5[Task(exercise,BrIaN,False)] PASSED                                                                                                                                                               [100%]
+```
+
+# パラメータのID化
+パラメータを id パラメータに渡すとパラメータを識別できる。
+
+```bash
+@pytest.mark.parametrize('task', [
+    pytest.param(Task('create'), id='just summary'),
+    pytest.param(Task('inspire', 'Michelle'), id='summary/owner'),
+    pytest.param(Task('encourage', 'Michelle', True), id='summary/owner/done')])
+def test_add_6(task):
+    """Demonstrate pytest.param and id."""
+    task_id = tasks.add(task)
+    t_from_db = tasks.get(task_id)
+    assert equivalent(t_from_db, task)
+    
+ $ pytest -v test_add_variety.py::test_add_6
+========================================================================================================= test session starts ==========================================================================================================
+platform darwin -- Python 3.6.4, pytest-4.1.1, py-1.7.0, pluggy-0.8.1 -- /Users/hono/Desktop/user_auth_with_django/env/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/hono/Desktop/pytest_code/ch2/tasks_proj/tests, inifile: pytest.ini
+collected 3 items                                                                                                                                                                                                                      
+
+test_add_variety.py::test_add_6[just summary] PASSED                                                                                                                                                                             [ 33%]
+test_add_variety.py::test_add_6[summary/owner] PASSED                                                                                                                                                                            [ 66%]
+test_add_variety.py::test_add_6[summary/owner/done] PASSED                                                                                                                                                                       [100%]
+
+$ pytest -v "test_add_variety.py::test_add_6[just summary]"
+========================================================================================================= test session starts ==========================================================================================================
+platform darwin -- Python 3.6.4, pytest-4.1.1, py-1.7.0, pluggy-0.8.1 -- /Users/hono/Desktop/user_auth_with_django/env/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/hono/Desktop/pytest_code/ch2/tasks_proj/tests, inifile: pytest.ini
+collected 1 item                                                                                                                                                                                                                       
+
+test_add_variety.py::test_add_6[just summary] PASSED  
+```
