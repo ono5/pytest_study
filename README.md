@@ -962,3 +962,140 @@ param に代入されているリストの要素が 1 つ設定される。
 テスト関数をパラメータ化するとそのテスト関数を複数回実行できる。一方、フィクスチャをパラメータ化すれば、
 そのフィクスチャを使用するすべてのテスト関数を、それぞれ複数回実行できるようになる。
 
+# 組み込みフィクスチャ
+
+## tmpdir / tmpdir_factory
+テストを実行する前に一時ディレクトリを作成し、テストの終了時にそのディレクトリを削除する。
+
+ファイルの読み取り、書き込み、または変更を行うテストをする場合は、1 回のテストだけで使用するファイルや
+ディレクトリの作成に tmpdir を使用する。関数スコープのフィクスチャのため、一時ファイルや一時ディレクトリを
+1 つのテスト内でのみ利用する場合に用いる。
+
+逆に 1 つのテスト関数の枠を超えて存続するようなファイルやディレクトリを tmpdir で作成することはできない。
+
+```bash
+def test_tmpdir(tmpdir):
+    # tmpdir already has a path name associated with it
+    # join() extends the path to include a filename
+    # the file is created when it's written to
+    a_file = tmpdir.join('something.txt')
+
+    # you can create directories
+    a_sub_dir = tmpdir.mkdir('anything')
+
+    # you can create files in directories (created when written)
+    another_file = a_sub_dir.join('something_else.txt')
+
+    # this write creates 'something.txt'
+    a_file.write('contents may settle during shipping')
+
+    # this write creates 'anything/something_else.txt'
+    another_file.write('something different')
+
+    # you can read the files as well
+    assert a_file.read() == 'contents may settle during shipping'
+    assert another_file.read() == 'something different'
+```
+
+tmpdir から返される値は、[py.path.local](https://py.readthedocs.io/en/latest/path.html) 型のオブジェクト。
+
+複数のテストで使用するディレクトリを準備したい場合は、tempdir_factory を使用する。
+ttmpdir_factory は、セッションスコープのフィクスチャ。
+
+セッションスコープで作成されたファイルは、セッションが終了するまで存続します。
+
+```bash
+def test_tmpdir_factory(tmpdir_factory):
+    # you should start with making a directory
+    # a_dir acts like the object returned from the tmpdir fixture
+    a_dir = tmpdir_factory.mktemp('mydir')
+
+    # base_temp will be the parent dir of 'mydir'
+    # you don't have to use getbasetemp()
+    # using it here just to show that it's available
+    base_temp = tmpdir_factory.getbasetemp()
+    print('base:', base_temp)
+
+    # the rest of this test looks the same as the 'test_tmpdir()'
+    # example except I'm using a_dir instead of tmpdir
+
+    a_file = a_dir.join('something.txt')
+    a_sub_dir = a_dir.mkdir('anything')
+    another_file = a_sub_dir.join('something_else.txt')
+
+    a_file.write('contents may settle during shipping')
+    another_file.write('something different')
+
+    assert a_file.read() == 'contents may settle during shipping'
+    assert another_file.read() == 'something different'
+```
+
+セッションで使用するベースディレクトリは、以下。
+
+```bash
+$ pytest -q -s test_tmpdir.py::test_tmpdir_factory
+base: /private/var/folders/zx/vr9x_3l51g3d02wd9dl7_vkw0000gn/T/pytest-of-hono/pytest-0
+.
+1 passed in 0.06 seconds
+```
+
+pytest-0 の 0 の部分は、テスト実行ごとにインクリメントされる。
+
+また、ベースディレクトリは、テスト終了後、すぐに削除されるわけではなく、直近の数回分だけ残して過去のものは
+pytest がクリーンアップしてくれる。
+
+ベースディレクトリを指定したい場合は、pytest --basetemp=<ディレクトリ名>を指定する。
+
+## 他のスコープの一時ディレクトリを使用する
+モジュールスコープやクラススコープで一時ディレクトリが必要な場合は、必要なスコープのフィクスチャを新たに作成し、
+そこから tmpdir_factory を呼び出す。
+
+```bash
+"""Demonstrate tmpdir_factory."""
+
+import json
+import pytest
+
+
+@pytest.fixture(scope='module')
+def author_file_json(tmpdir_factory):
+    """Write some authors to a data file."""
+    python_author_data = {
+        'Ned': {'City': 'Boston'},
+        'Brian': {'City': 'Portland'},
+        'Luciano': {'City': 'Sau Paulo'}
+    }
+
+    file_ = tmpdir_factory.mktemp('data').join('author_file.json')
+    print('file:{}'.format(str(file_)))
+
+    with file.open('w') as f:
+        json.dump(python_author_data, f)
+    return file
+
+
+----------
+
+"""Some tests that use temp data files."""
+import json
+
+
+def test_brian_in_portland(author_file_json):
+    """A test that uses a data file."""
+    with author_file_json.open() as f:
+        authors = json.load(f)
+    assert authors['Brian']['City'] == 'Portland'
+
+
+def test_all_have_cities(author_file_json):
+    """Same file is used for both tests."""
+    with author_file_json.open() as f:
+        authors = json.load(f)
+    for a in authors:
+        assert len(authors[a]['City']) > 0
+```
+
+## pytestconfig
+
+
+
