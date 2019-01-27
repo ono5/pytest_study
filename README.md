@@ -1097,5 +1097,232 @@ def test_all_have_cities(author_file_json):
 
 ## pytestconfig
 
+コマンドライン引数やコマンドラインオプション、構成ファイル、プラグインを通じた pytest の実行方法を制御できる。
 
+このフィクスチャは、request.config のショートカットであり、pytest config object とも呼ばれる。
+
+pytestconfig には、カスタムコマンドラインオプションを追加できる。
+
+コマンドラインオプションの値は、pytestconfig から直接読み取ることができるが、新たにオプションを追加し、
+pytest に解析させるには、フック関数を追加する必要がある。
+
+フック関数は、pytest の振る舞いを制御するもう一つの方法。
+
+pytest のコマンドラインに新しいオプションを追加するには、フック関数 pytest_addoption() を定義し、
+pytest から呼び出されるようにする。
+
+```conftest.py
+def pytest_addoption(parser):
+    parser.addoption("--myopt", action="store_true",
+                     help="some boolean option")
+    parser.addoption("--foo", action="store", default="bar",
+                     help="foo: bar or baz")
+```
+
+pytest_addoption() を通じたコマンドラインオプションの追加は、プラグインで行うか、プロジェクトの
+ディレクトリ構造ルートにある conftest.py ファイルで行うこと。サブディレクトリで行うべきではない。
+
+```bash
+pytest --help
+
+custom options:
+  --myopt              some boolean option
+  --foo=Foo            foo: bar or baz
+```
+
+テストから利用する方法
+
+```bash
+import pytest
+
+
+def test_option(pytestconfig):
+    print('"foo" set to:', pytestconfig.getoption('foo'))
+    print('"myopt" set to:', pytestconfig.getoption('myopt'))
+```
+
+pytestconfig は、フィクスチャであるため、他のフィクスチャからもアクセスできる。
+
+
+```bash
+@pytest.fixture()
+def foo(pytestconfig):
+    return pytestconfig.option.foo
+
+
+@pytest.fixture()
+def myopt(pytestconfig):
+    return pytestconfig.option.myopt
+
+
+def test_fixtures_for_options(foo, myopt):
+    print('"foo" set to:', foo)
+    print('"myopt" set to:', myopt)
+```
+
+## cache
+
+テストセッションの情報を次のテストセッションに渡したい場合、cache を利用する。
+
+cache は、あるテストセッションに関する情報を格納し、次のテストセッションで取得するためのフィクスチャ。
+
+--last-failed と --failed-first もこの仕組みを利用している。
+
+セッションに格納された情報は、以下のコマンドから確認できる。
+
+```bash
+pytest --cache-show
+```
+
+キャッシュをクリアしたい場合は、--cache-clear オプションを使用する。
+
+cache フィクスチャのインターフェースを以下に示す。
+
+```bash
+cache.get(<キー>, <デフォルト>)
+cache.set(<キー>, <値>)
+```
+
+キーの名前は、アプリケーションまたはプラグインの名前で始まり、スラッシュ、キー名の別の部分、スラッシュ・・・
+という形式で構成される。
+
+
+.cache ディレクトリのデータは、JSON 形式で表現されるので、JOSON と互換性があれば、どのような値でも問題ない。
+
+```bash
+import datetime
+import pytest
+import random
+import time
+
+
+@pytest.fixture(autouse=True)
+def check_duration(request, cache):
+    key = 'duration/' + request.node.nodeid.replace(':', '_')
+    # nodeid's can have colons
+    # keys become filenames within .cache
+    # replace colons with something filename safe
+    start_time = datetime.datetime.now()
+    yield
+    stop_time = datetime.datetime.now()
+    this_duration = (stop_time - start_time).total_seconds()
+    last_duration = cache.get(key, None)
+    cache.set(key, this_duration)
+    if last_duration is not None:
+        errorstring = "test duration over 2x last duration"
+        assert this_duration <= last_duration * 2, errorstring
+
+
+@pytest.mark.parametrize('i', range(5))
+def test_slow_stuff(i):
+    time.sleep(random.random())
+```
+
+# pytest の構成
+pytest の構成ファイルを以下に示す。
+
+* pytest.ini
+  - pytest のデフォルトの振る舞いを変更できるようにするメインの構成ファイル。
+ 
+* conftest.py
+  - ローカルプラグイン。conftest.py ファイルが存在するディレクトリとその全てのサブディレクトリでフック関数とフィクスチャが利用可能になる。
+
+* __init__.py
+  - このファイルをテストディレクトリごとに配置すると、複数のテストディレクトリで同じ名前のテストファイルを使用できるようになる。
+
+* tox.ini
+  - tox の pytest.ini に相当するファイル。このファイルを追加する場合、pytest.ini は不要。(設定の一本化)
+
+## .ini ファイルの有効なオプション
+
+```bash
+$ pytest --help
+
+[pytest] ini-options in the first pytest.ini|tox.ini|setup.cfg file found:
+
+  markers (linelist)       markers for test functions
+  empty_parameter_set_mark (string) default marker for empty parametersets
+  norecursedirs (args)     directory patterns to avoid for recursion
+  testpaths (args)         directories to search for tests when no files or directories are given in the command line.
+  console_output_style (string) console output: classic or with additional progress information (classic|progress).
+  usefixtures (args)       list of default fixtures to be used with this project
+  python_files (args)      glob-style file patterns for Python test module discovery
+  python_classes (args)    prefixes or glob names for Python test class discovery
+  python_functions (args)  prefixes or glob names for Python test function and method discovery
+  xfail_strict (bool)      default for the strict parameter of xfail markers when not given explicitly (default: False)
+  junit_suite_name (string) Test suite name for JUnit report
+  junit_logging (string)   Write captured log messages to JUnit report: one of no|system-out|system-err
+  junit_duration_report (string) Duration time to report: one of total|call
+  doctest_optionflags (args) option flags for doctests
+  doctest_encoding (string) encoding used for doctest files
+  cache_dir (string)       cache directory path.
+  filterwarnings (linelist) Each line specifies a pattern for warnings.filterwarnings. Processed after -W and --pythonwarnings.
+  log_print (bool)         default value for --no-print-logs
+  log_level (string)       default value for --log-level
+  log_format (string)      default value for --log-format
+  log_date_format (string) default value for --log-date-format
+  log_cli (bool)           enable log display during test run (also known as "live logging").
+  log_cli_level (string)   default value for --log-cli-level
+  log_cli_format (string)  default value for --log-cli-format
+  log_cli_date_format (string) default value for --log-cli-date-format
+  log_file (string)        default value for --log-file
+  log_file_level (string)  default value for --log-file-level
+  log_file_format (string) default value for --log-file-format
+  log_file_date_format (string) default value for --log-file-date-format
+  addopts (args)           extra command line options
+  minversion (string)      minimally required pytest version
+```
+
+## pyetst の最低バージョンを指定する
+
+minversion を使用する。
+
+## pytest が間違った場所を調べないようにする
+
+norecursedirs を使用する。
+
+## テストディレクトリの場所を指定する。
+
+testpaths を使用する。
+
+この設定が使用されるのは、ディレクトリ、ファイル、または、nodeid が引数に指定されていない場合だけ。
+
+設定は、ルートディレクトリを基準とした相対パスで指定する。
+
+# テストディスカバリのルール
+
+* 1 つ以上のディレクトリから開始する。コマンドラインにファイル名または、ディレクトリ名を指定できる。何指定しない場合は、現在のディレクトリが指定される。
+* そのディレクトリと全てのサブディレクトリでテストモジュールを再帰的に調べる
+* テストモジュールとは、test_*.py や *_test.py のような名前がついたファイルのことをさす。
+* テストモジュールで、test_で始まる名前の関数を調べる
+* Test で始まる名前のクラスを調べる。それらのうち、__init__ メソッドを持たないクラスで、test_ で始まるメソッドを調べる。
+
+## python_classes
+テストクラス名のルールを pytest_classes で変更できる。
+
+```bash
+[pytest]
+python_classes = *Test Test* *Suite
+```
+
+## python_files
+デフォルトのファイル検索ルールを変更できる。
+
+```bash
+[pytest]
+python_files - test_* *_test check_*
+```
+
+## python_functions
+
+テストメソッドのルールを変更する。
+
+```bash
+[pytest]
+python_function = test_* check_*
+```
+
+## XPASS を許可しない
+xfail_strict=true を設定すると @pytest.mark.xfail のマークがついたテsつ蘇我失敗しなかった場合、
+エラーとして報告される。
 
