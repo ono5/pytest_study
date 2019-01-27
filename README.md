@@ -789,7 +789,6 @@ def db_with_multi_per_owner(tasks_db, tasks_mult_per_owner):
         tasks.add(t)
         
 
-# 使用
 def test_add_increases_count(db_with_3_tasks):
     """Test tasks.add() affect on tasks.count()."""
     # GIVEN a db with 3 tasks
@@ -798,5 +797,168 @@ def test_add_increases_count(db_with_3_tasks):
 
     #  THEN the count increases by 1
     assert tasks.count() == 4
+```
+
+## フィクスチャのスコープ
+
+フィクスチャの scope オプションパラメータは、フィクスチャのセットアップとティアダウンの実行タイミングを制御する。
+
+* scope='function'
+ - デフォルトのスコープ。テスト関数ごとに 1 回実行される。セットアップ部分は、このフィクスチャを使用しているテストの前に実行される。
+   ティアダウン部分は、このフィクスチャを使用しているテストの後に実行される。
+   
+* scope='class'
+ - テストクラスにテストメソッドがいくつ定義されているかに関係なく、テストクラスごとに 1 回実行される。
+ 
+* scope='module'
+ - モジュールにテスト関数、テストメソッド、他のフィクスチャがいくつ定義されているかに関係なく、モジュールごとに 1 回実行される。
+   1 ファイルにつき、1 回実行される。
+
+* socpe='session'
+ - セッションごとに 1 回実行される。pytest コマンドでテストを 1 回実行するのが 1 1セッションとなる。
+   セッションスコープのフィクスチャを使用するテストメソッドやテスト関数は全て、同じセットアップ/ティアダウン呼び出しを共有する。
+   
+フィクスチャが他のフィクスチャに依存する場合、依存先のフィクスチャは同じスコープかそれよりも広いスコープのものに限られる。
+   
+```bash
+"""Demo fixture scope."""
+
+import pytest
+
+
+@pytest.fixture(scope='function')
+def func_scope():
+    """A function scope fixture."""
+
+
+@pytest.fixture(scope='module')
+def mod_scope():
+    """A module scope fixture."""
+
+
+@pytest.fixture(scope='session')
+def sess_scope():
+    """A session scope fixture."""
+
+
+@pytest.fixture(scope='class')
+def class_scope():
+    """A class scope fixture."""
+
+
+def test_1(sess_scope, mod_scope, func_scope):
+    """Test using session, module, and function scope fixtures."""
+
+
+def test_2(sess_scope, mod_scope, func_scope):
+    """Demo is more fun with multiple tests."""
+
+@pytest.mark.usefixtures('class_scope') # クラスでフィクスチャを使う指定
+class TestSomething():
+    """Demo class scope fixtures."""
+
+    def test_3(self):
+        """Test using a class scope fixture."""
+
+    def test_4(self):
+        """Again, multiple tests are more fun."""
+```
+
+## usefixtures
+
+テスト関数やクラスに @pytest.mark.usefixtures('fixture1', 'fixture2') というマーカーを割り当てる方法もある。
+
+usefixtures には、使用するフィクスチャの名前をコンマ区切りの文字列として指定できる。
+
+テストでフィクスチャの戻り値を使用できるのは、そのフィクスチャがパラメータリストで指定されている場合のみ。
+usefixtures を使用するとフィクスチャの戻り値を使用できない。
+
+## autouse
+
+autouse=True にするとフィクスチャを常に実行できるようになる(パラメータに指定しないで)。
+
+この機能は、ある処理を必ず実行したい場合で、処理の結果やデータにテストが依存したいないときに便利。
+
+常に実行されてしまうので、使いどころが重要。
+
+## フィクスチャのパラメータ化
+
+フィクスチャもパラメータ化できる。
+
+```bash
+"""Test the tasks.add() API function."""
+
+import pytest
+import tasks
+from tasks import Task
+
+tasks_to_try = (Task('sleep', done=True),
+                Task('wake', 'brian'),
+                Task('breathe', 'BRIAN', True),
+                Task('exercise', 'BrIaN', False))
+
+task_ids = ['Task({},{},{})'.format(t.summary, t.owner, t.done)
+            for t in tasks_to_try]
+
+
+def equivalent(t1, t2):
+    """Check two tasks for equivalence."""
+    return ((t1.summary == t2.summary) and
+            (t1.owner == t2.owner) and
+            (t1.done == t2.done))
+
+
+@pytest.fixture(params=tasks_to_try)
+def a_task(request):
+    """Using no ids."""
+    return request.param
+
+
+def test_add_a(tasks_db, a_task):
+    """Using a_task fixture (no ids)."""
+    task_id = tasks.add(a_task)
+    t_from_db = tasks.get(task_id)
+    assert equivalent(t_from_db, a_task)
+
+
+@pytest.fixture(params=tasks_to_try, ids=task_ids)
+def b_task(request):
+    """Using a list of ids."""
+    return request.param
+
+
+def test_add_b(tasks_db, b_task):
+    """Using b_task fixture, with ids."""
+    task_id = tasks.add(b_task)
+    t_from_db = tasks.get(task_id)
+    assert equivalent(t_from_db, b_task)
+
+
+def id_func(fixture_value):
+    """A function for generating ids."""
+    t = fixture_value
+    return 'Task({},{},{})'.format(t.summary, t.owner, t.done)
+
+
+@pytest.fixture(params=tasks_to_try, ids=id_func)
+def c_task(request):
+    """Using a function (id_func) to generate ids."""
+    return request.param
+
+
+def test_add_c(tasks_db, c_task):
+    """Use fixture with generated ids."""
+    task_id = tasks.add(c_task)
+    t_from_db = tasks.get(task_id)
+    assert equivalent(t_from_db, c_task)
 
 ```
+
+request は、組み込みフィクスチャの一つであり、フィクスチャの呼び出し状態を表わす。
+
+このフィクスチャには param というフィールドがあり、@pytest.fixture(params=tasks_to_tyr) にて、
+param に代入されているリストの要素が 1 つ設定される。
+
+テスト関数をパラメータ化するとそのテスト関数を複数回実行できる。一方、フィクスチャをパラメータ化すれば、
+そのフィクスチャを使用するすべてのテスト関数を、それぞれ複数回実行できるようになる。
+
