@@ -1359,3 +1359,28 @@ $ pytest --markers
 
 @pytest.mark.trylast: mark a hook implementation function such that the plugin machinery will try to call it last/as late as possible.
 ```
+
+# pytest-html
+
+```bash
+pip install pytest-html
+
+pytest --html"result.html"
+
+
+pytest --junitxml="results.xml"
+```
+
+# pytest fixture
+
+[pytest fixture](https://docs.pytest.org/en/latest/fixture.html)
+
+# Customizing Test Runs with the Command Line and Configuration Files
+
+* [Python argparse documentation](https://docs.python.org/3/library/argparse.html)
+* [Git repo containing this lecutre's code](https://github.com/brandonblair/elegantframeworks/tree/config_recipe)
+
+```bash
+custom options:
+  --env=ENV             Environment to run tests against
+```
