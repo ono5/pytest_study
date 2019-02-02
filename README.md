@@ -1384,3 +1384,56 @@ pytest --junitxml="results.xml"
 custom options:
   --env=ENV             Environment to run tests against
 ```
+
+# pytest - Skip
+[Ref](https://docs.pytest.org/en/latest/skipping.html)
+
+```bash
+@mark.skip(reason='Not a staging environment')
+def test_environment_is_staging(app_config):
+    base_url = app_config.base_url
+    assert base_url == 'staging'
+    
+$ pytest --env dev -v -rs
+========================================================================================================= test session starts ==========================================================================================================
+platform darwin -- Python 3.6.4, pytest-4.2.0, py-1.7.0, pluggy-0.8.1 -- /Users/hono/Desktop/pytest_code/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/hono/Desktop/pytest_code/custom_config, inifile: pytest.ini
+collected 3 items                                                                                                                                                                                                                      
+
+tests/test_environment.py::test_environment_is_qa SKIPPED                                                                                                                                                                        [ 33%]
+tests/test_environment.py::test_environment_is_dev PASSED                                                                                                                                                                        [ 66%]
+tests/test_environment.py::test_environment_is_staging SKIPPED                                                                                                                                                                   [100%]
+======================================================================================================= short test summary info ========================================================================================================
+SKIPPED [1] tests/test_environment.py:4: broken by deploy somenumber
+SKIPPED [1] tests/test_environment.py:19: Not a staging environment
+```
+
+It is useful by using xfail.
+
+```bash
+@mark.xfail
+def test_environment_is_qa(app_config):
+    base_url = app_config.base_url
+    port = app_config.app_port
+    assert base_url == 'https://myqa-env.com'
+    assert port == 80
+
+
+def test_environment_is_dev(app_config):
+    base_url = app_config.base_url
+    port = app_config.app_port
+    assert base_url == 'https://mydev-env.com'
+    assert port == 8080
+
+(venv) $ pytest --env dev -v -rs
+========================================================================================================= test session starts ==========================================================================================================
+platform darwin -- Python 3.6.4, pytest-4.2.0, py-1.7.0, pluggy-0.8.1 -- /Users/hono/Desktop/pytest_code/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/hono/Desktop/pytest_code/custom_config, inifile: pytest.ini
+collected 2 items                                                                                                                                                                                                                      
+
+tests/test_environment.py::test_environment_is_qa XFAIL                                                                                                                                                                          [ 50%]
+tests/test_environment.py::test_environment_is_dev PASSED                                                                                                                                                                        [100%]
+```
+
