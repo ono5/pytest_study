@@ -1437,3 +1437,98 @@ tests/test_environment.py::test_environment_is_qa XFAIL                         
 tests/test_environment.py::test_environment_is_dev PASSED                                                                                                                                                                        [100%]
 ```
 
+# Cross-Browser and Data-driven testing with parametrize
+
+* [Training Ground](https://techstepacademy.com/training-ground)
+* [Parametrizing fixtures and test functions](https://docs.pytest.org/en/latest/parametrize.html)
+* [Setting Up Selenium with Webdrivers](https://www.udemy.com/elegant-browser-automation-with-python-and-selenium/)
+* [elegantframeworks](https://github.com/brandonblair/elegantframeworks/tree/parametrize)
+
+
+```bash
+from pytest import mark
+
+@mark.parametrize('tv_brand', [
+        ('Samsung'),
+        ('Sony'),
+        ('Vizio')
+    ]
+)
+def test_television_turns_on(tv_brand):
+    print(f'{tv_brand} turns on as expected')
+    
+pytest -v -s
+========================================================================================================= test session starts ==========================================================================================================
+platform darwin -- Python 3.6.4, pytest-4.2.0, py-1.7.0, pluggy-0.8.1 -- /Users/hono/Desktop/pytest_code/venv/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/hono/Desktop/pytest_code/elegantframeworks/tests, inifile:
+collected 3 items                                                                                                                                                                                                                      
+
+test_television.py::test_television_turns_on[Samsung] Samsung turns on as expected
+PASSED
+test_television.py::test_television_turns_on[Sony] Sony turns on as expected
+PASSED
+test_television.py::test_television_turns_on[Vizio] Vizio turns on as expected
+PASSED
+```
+
+```bash
+from pytest import fixture
+from selenium import webdriver
+
+
+@fixture(params=[webdriver.Chrome, webdriver.Firefox, webdriver.Edge])
+def browser(request):
+    driver = request.param
+    drvr = driver()
+    yield drvr
+    drvr.quit()
+```
+
+## データを持たせる
+
+test_data.json
+
+```bash
+[
+  "Sony",
+  "Samsung",
+  "Vizio"
+]
+```
+
+conftest.py
+
+```bash
+import json
+
+from pytest import fixture
+
+data_path = 'test_data.json'
+
+
+def load_test_data(path):
+    with open(path) as data_file:
+        data = json.load(data_file)
+        return data
+
+@fixture(params=[load_test_data(data_path)])
+def tv_brand(request):
+    data = request.param
+    return data
+```
+
+test_television.py
+
+```bash
+from pytest import mark
+
+
+def test_television_turns_on(tv_brand):
+    print(f'{tv_brand} turns on as expected')
+
+```
+
+
+
+
