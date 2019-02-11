@@ -1580,6 +1580,12 @@ python
 >>> import titlecase
 ```
 
+# Running Unit Tests with Tox
 
+[Ref](https://tox.readthedocs.io/en/latest/)
+
+```
+pip install tox
+```
 
 
