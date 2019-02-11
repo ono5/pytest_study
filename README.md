@@ -1542,9 +1542,44 @@ pytest -s -v -n4 test_chemistry_results.py
 
 
 pytest -s -v -nauto test_chemistry_results.py
-
-
 ```
+
+# Writing Greate Tests
+
+[Ref](https://github.com/BrandonBlair/elegantframeworks/tree/unittesting/titlecase)
+
+
+```bash
+# /pytest_code/elegantframeworks-unittesting
+
+pip install .
+
+ pip list
+Package        Version
+-------------- -------
+apipkg         1.5    
+atomicwrites   1.3.0  
+attrs          18.2.0 
+elegantcasing  1.0.1   ⭐️
+execnet        1.5.0  
+more-itertools 5.0.0  
+pip            19.0.1 
+pluggy         0.8.1  
+py             1.7.0  
+pytest         4.2.0  
+pytest-forked  1.0.1  
+pytest-xdist   1.26.1 
+selenium       3.141.0
+setuptools     40.7.2 
+six            1.12.0 
+urllib3        1.24.1 
+wheel          0.32.3 
+
+# 確認
+python
+>>> import titlecase
+```
+
 
 
 
