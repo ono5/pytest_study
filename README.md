@@ -1529,6 +1529,22 @@ def test_television_turns_on(tv_brand):
 
 ```
 
+## Fast Testing with Pytest-xdist, and Parallel vs Concurrent
+
+[Ref](https://github.com/BrandonBlair)  
+[pytest-xdist](https://pypi.org/project/pytest-xdist/)
+
+```bash
+pip install pytest-xdist
+
+# 並列実行(n => 実行数)
+pytest -s -v -n4 test_chemistry_results.py 
+
+
+pytest -s -v -nauto test_chemistry_results.py
+
+
+```
 
 
 
